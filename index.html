@@ -91,10 +91,49 @@ function renderHistory(){
 
 function detailField(label,value,full=false){return `<div class="detail-item ${full?'detail-full':''}"><span class="history-label">${esc(label)}</span><div class="history-value">${esc(value||'—')}</div></div>`}
 function authText(entries){return (entries||[]).map(a=>[a.number,a.rating].filter(Boolean).join(' · ')).join('\n')||'—'}
-function openDetail(id){const x=records().find(r=>String(r.id)===String(id));if(!x)return;const flight=x.category==='Flight';document.getElementById('detailContent').innerHTML=`<div class="detail-head"><div><h2>Instructor Activity Report</h2><div class="history-date">${esc(x.reportNo||'Report #'+x.sequence)} · ${esc(displayDate(x.date))}</div></div><button class="detail-close" onclick="closeDetail()">✕ Close</button></div><div class="detail-section">Instructor Information</div><div class="detail-grid">${detailField('Name of Instructor',x.instructor)}${detailField('Activity Name',x.category+' Activity')}${detailField('No. LOA & Rating',authText(x.loa))}${detailField('No. CCP & Rating',authText(x.ccp))}</div><div class="detail-section">Activity Details</div><div class="detail-grid">${detailField('No. Urut',x.sequence)}${detailField('Date',displayDate(x.date))}${detailField('Type of Training',x.trainingType)}${detailField('Trainee',traineeNames(x).join(' / '))}${flight?detailField('Flight Time',x.flightTime)+detailField('Route',x.route):detailField('Place',x.place)+detailField('Subject',x.subject,true)+detailField('Time Start',x.start)+detailField('Time Finish',x.finish)+detailField('Total Time',x.totalTime)}${detailField('Result',x.result,true)}${detailField('Instructor Remarks / Observations',x.remarks,true)}</div><div class="history-actions" style="margin-top:20px"><button class="smallbtn primary" onclick="closeDetail();editReport(${JSON.stringify(String(x.id))})">Edit</button><button class="smallbtn" onclick="closeDetail()">Back to History</button></div>`;document.getElementById('detailOverlay').classList.remove('hidden');document.body.style.overflow='hidden'}
+function openDetail(id){const x=records().find(r=>String(r.id)===String(id));if(!x)return;const flight=x.category==='Flight';document.getElementById('detailContent').innerHTML=`<div class="detail-head"><div><h2>Instructor Activity Report</h2><div class="history-date">${esc(x.reportNo||'Report #'+x.sequence)} · ${esc(displayDate(x.date))}</div></div><button class="detail-close" onclick="closeDetail()">✕ Close</button></div><div class="detail-section">Instructor Information</div><div class="detail-grid">${detailField('Name of Instructor',x.instructor)}${detailField('Activity Name',x.category+' Activity')}${detailField('No. LOA & Rating',authText(x.loa))}${detailField('No. CCP & Rating',authText(x.ccp))}</div><div class="detail-section">Activity Details</div><div class="detail-grid">${detailField('No. Urut',x.sequence)}${detailField('Date',displayDate(x.date))}${detailField('Type of Training',x.trainingType)}${detailField('Trainee',traineeNames(x).join(' / '))}${flight?detailField('Flight Time',x.flightTime)+detailField('Route',x.route):detailField('Place',x.place)+detailField('Subject',x.subject,true)+detailField('Time Start',x.start)+detailField('Time Finish',x.finish)+detailField('Total Time',x.totalTime)}${detailField('Result',x.result,true)}${detailField('Instructor Remarks / Observations',x.remarks,true)}</div><div class="history-actions" style="margin-top:20px"><button class="smallbtn primary" onclick="editFromDetail(${JSON.stringify(String(x.id))})">Edit</button><button class="smallbtn" onclick="closeDetail()">Back to History</button></div>`;document.getElementById('detailOverlay').classList.remove('hidden');document.body.style.overflow='hidden'}
 function closeDetail(){document.getElementById('detailOverlay').classList.add('hidden');document.body.style.overflow=''}
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
-function editReport(id){const x=records().find(r=>String(r.id)===String(id));if(!x)return;newReport();editId=id;for(const [k,v] of Object.entries(x)){if(['ratings','loa','ccp','id','savedAt','trainees','trainee'].includes(k))continue;if(form.elements[k]&&typeof v==='string')form.elements[k].value=v}setAuth('loaEntries',x.loa);setAuth('ccpEntries',x.ccp);const names=traineeNames(x);document.querySelectorAll('#traineeChoices input').forEach(el=>el.checked=names.includes(el.value));updateTraineeSelected();toggleCategory();showPage('form');window.scrollTo(0,0)}
+function editFromDetail(id){
+  // Open the form before dismissing the modal, and preserve the record identifier.
+  const found=records().some(r=>String(r.id)===String(id));
+  if(!found){alert('Report not found. Please refresh Report History.');return;}
+  try{editReport(id);closeDetail();}
+  catch(error){console.error('Unable to edit instructor report:',error);alert('Unable to open Edit form: '+(error?.message||error));}
+}
+function editReport(id){
+  const x=records().find(r=>String(r.id)===String(id));
+  if(!x){alert('Report not found.');return;}
+  newReport();
+  editId=String(x.id);
+  // Imported historical names may not yet exist in Master Data; preserve them for editing.
+  const instructorSelect=form.elements.namedItem('instructor');
+  if(x.instructor&&instructorSelect&&!Array.from(instructorSelect.options).some(o=>o.value===x.instructor))instructorSelect.add(new Option(x.instructor,x.instructor));
+  const trainingSelect=form.elements.namedItem('trainingType');
+  if(x.trainingType&&trainingSelect&&!Array.from(trainingSelect.options).some(o=>o.value===x.trainingType))trainingSelect.add(new Option(x.trainingType,x.trainingType));
+  const names=traineeNames(x);
+  const choices=document.getElementById('traineeChoices');
+  for(const name of names){
+    if(!Array.from(choices.querySelectorAll('input')).some(el=>el.value===name)){
+      const label=document.createElement('label'),input=document.createElement('input');
+      input.type='checkbox';input.name='trainees';input.value=name;
+      input.addEventListener('change',updateTraineeSelected);
+      label.append(input,document.createTextNode(name));choices.append(label);
+    }
+  }
+  for(const [k,v] of Object.entries(x)){
+    if(['ratings','loa','ccp','id','savedAt','trainees','trainee'].includes(k))continue;
+    const field=form.elements.namedItem(k);
+    if(field&&typeof v!=='object'&&v!==null&&v!==undefined&&'value' in field)field.value=String(v);
+  }
+  setAuth('loaEntries',x.loa||[]);setAuth('ccpEntries',x.ccp||[]);
+  choices.querySelectorAll('input').forEach(el=>el.checked=names.includes(el.value));
+  updateTraineeSelected();toggleCategory();
+  const heading=document.querySelector('#formPanel h2');
+  if(heading)heading.textContent='Edit Instructor Activity Report';
+  showPage('form');window.scrollTo(0,0);
+}
+
 function copyReport(id){const source=records().find(r=>String(r.id)===String(id));if(!source)return;editReport(id);editId=null;refreshNumber();const heading=document.querySelector('#formPanel h2');if(heading)heading.textContent='Instructor Activity Report — Copy';window.scrollTo(0,0)}
 function deleteReport(id){if(!confirm('Delete this activity report?'))return;saveCloudRecords(records().filter(x=>x.id!==id));renderHistory()}
 function updateSelectionCount(){const n=document.querySelectorAll('.record-select:checked').length;const el=document.getElementById('selectionCount');if(el)el.textContent=n+' records selected'}
