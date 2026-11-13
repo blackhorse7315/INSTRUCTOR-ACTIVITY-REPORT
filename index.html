@@ -324,7 +324,7 @@ function saveCloudRecords(next){
  for(const [id,r] of after){if(!before.has(id)||JSON.stringify(before.get(id))!==JSON.stringify(r))ops.push({id,record:r})}
  for(const id of before.keys())if(!after.has(id))ops.push({id,remove:true});
  cloudRecords=next.map(r=>({...r}));cacheSet(STORE,cloudRecords);
- queueCloud(async()=>{for(let i=0;i<ops.length;i+=400){const batch=cloudDb.batch();for(const op of ops.slice(i,i+400)){const ref=cloudDb.collection('instructorActivityReports').doc(op.id);if(op.remove)batch.delete(ref);else batch.set(ref,op.record)}await batch.commit()}statusCloud('Firebase connected • Reports synchronized')});
+ queueCloud(async()=>{for(let i=0;i<ops.length;i+=400){const batch=cloudDb.batch();for(const op of ops.slice(i,i+400)){const ref=cloudDb.collection('instructorActivityReports').doc(op.id);if(op.remove)batch.delete(ref);else batch.set(ref,op.record)}await batch.commit()}statusCloud('application connected')});
 }
 function saveCloudMaster(m){if(!cloudReady){alert('Firebase is not connected.');throw Error('Firebase not connected')}cloudMaster=structuredClone(m);cacheSet(MASTER,m);queueCloud(()=>cloudDb.collection('instructorActivitySettings').doc('master').set(m));}
 async function migrateLocalToCloud(){
@@ -343,7 +343,7 @@ async function startFirebase(){
  const [rs,ms]=await Promise.all([cloudDb.collection('instructorActivityReports').get(),cloudDb.collection('instructorActivitySettings').doc('master').get()]);
  cloudRecords=rs.docs.map(d=>d.data());cloudMaster=ms.exists?ms.data():structuredClone(defaults);
  cacheSet(STORE,cloudRecords);cacheSet(MASTER,cloudMaster);cloudReady=true;
- renderMasterOptions();renderHistory();refreshNumber();statusCloud('Firebase connected • Public shared reports');
+ renderMasterOptions();renderHistory();refreshNumber();statusCloud('application connected');
  cloudDb.collection('instructorActivityReports').onSnapshot(snap=>{cloudRecords=snap.docs.map(d=>d.data());cacheSet(STORE,cloudRecords);renderHistory();if(!editId)refreshNumber()},e=>statusCloud('Report sync error: '+e.message));
  cloudDb.collection('instructorActivitySettings').doc('master').onSnapshot(doc=>{if(doc.exists){cloudMaster=doc.data();cacheSet(MASTER,cloudMaster);renderMasterOptions();if(!document.getElementById('adminPanel').classList.contains('hidden'))renderAdmin()}},e=>statusCloud('Master sync error: '+e.message));
  }catch(e){statusCloud('Firebase connection failed: '+e.message+' — Enable Anonymous Authentication and check Firestore rules.');}
