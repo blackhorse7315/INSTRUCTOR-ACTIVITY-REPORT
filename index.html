@@ -91,16 +91,37 @@ function renderHistory(){
 
 function detailField(label,value,full=false){return `<div class="detail-item ${full?'detail-full':''}"><span class="history-label">${esc(label)}</span><div class="history-value">${esc(value||'—')}</div></div>`}
 function authText(entries){return (entries||[]).map(a=>[a.number,a.rating].filter(Boolean).join(' · ')).join('\n')||'—'}
-function openDetail(id){const x=records().find(r=>String(r.id)===String(id));if(!x)return;const flight=x.category==='Flight';document.getElementById('detailContent').innerHTML=`<div class="detail-head"><div><h2>Instructor Activity Report</h2><div class="history-date">${esc(x.reportNo||'Report #'+x.sequence)} · ${esc(displayDate(x.date))}</div></div><button class="detail-close" onclick="closeDetail()">✕ Close</button></div><div class="detail-section">Instructor Information</div><div class="detail-grid">${detailField('Name of Instructor',x.instructor)}${detailField('Activity Name',x.category+' Activity')}${detailField('No. LOA & Rating',authText(x.loa))}${detailField('No. CCP & Rating',authText(x.ccp))}</div><div class="detail-section">Activity Details</div><div class="detail-grid">${detailField('No. Urut',x.sequence)}${detailField('Date',displayDate(x.date))}${detailField('Type of Training',x.trainingType)}${detailField('Trainee',traineeNames(x).join(' / '))}${flight?detailField('Flight Time',x.flightTime)+detailField('Route',x.route):detailField('Place',x.place)+detailField('Subject',x.subject,true)+detailField('Time Start',x.start)+detailField('Time Finish',x.finish)+detailField('Total Time',x.totalTime)}${detailField('Result',x.result,true)}${detailField('Instructor Remarks / Observations',x.remarks,true)}</div><div class="history-actions" style="margin-top:20px"><button class="smallbtn primary" onclick="editFromDetail(${JSON.stringify(String(x.id))})">Edit</button><button class="smallbtn" onclick="closeDetail()">Back to History</button></div>`;document.getElementById('detailOverlay').classList.remove('hidden');document.body.style.overflow='hidden'}
+function openDetail(id){const x=records().find(r=>String(r.id)===String(id));if(!x)return;const flight=x.category==='Flight';document.getElementById('detailContent').innerHTML=`<div class="detail-head"><div><h2>Instructor Activity Report</h2><div class="history-date">${esc(x.reportNo||'Report #'+x.sequence)} · ${esc(displayDate(x.date))}</div></div><button class="detail-close" onclick="closeDetail()">✕ Close</button></div><div class="detail-section">Instructor Information</div><div class="detail-grid">${detailField('Name of Instructor',x.instructor)}${detailField('Activity Name',x.category+' Activity')}${detailField('No. LOA & Rating',authText(x.loa))}${detailField('No. CCP & Rating',authText(x.ccp))}</div><div class="detail-section">Activity Details</div><div class="detail-grid">${detailField('No. Urut',x.sequence)}${detailField('Date',displayDate(x.date))}${detailField('Type of Training',x.trainingType)}${detailField('Trainee',traineeNames(x).join(' / '))}${flight?detailField('Flight Time',x.flightTime)+detailField('Route',x.route):detailField('Place',x.place)+detailField('Subject',x.subject,true)+detailField('Time Start',x.start)+detailField('Time Finish',x.finish)+detailField('Total Time',x.totalTime)}${detailField('Result',x.result,true)}${detailField('Instructor Remarks / Observations',x.remarks,true)}</div><div class="history-actions" style="margin-top:20px"><button class="smallbtn primary" type="button" id="detailEditAction" data-edit-report-id="${esc(String(x.id))}">Edit</button><button class="smallbtn" onclick="closeDetail()">Back to History</button></div>`;document.getElementById('detailOverlay').classList.remove('hidden');document.body.style.overflow='hidden'}
 function closeDetail(){document.getElementById('detailOverlay').classList.add('hidden');document.body.style.overflow=''}
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail()});
 function editFromDetail(id){
-  // Open the form before dismissing the modal, and preserve the record identifier.
-  const found=records().some(r=>String(r.id)===String(id));
-  if(!found){alert('Report not found. Please refresh Report History.');return;}
-  try{editReport(id);closeDetail();}
-  catch(error){console.error('Unable to edit instructor report:',error);alert('Unable to open Edit form: '+(error?.message||error));}
+  const reportId=String(id||'');
+  if(!records().some(r=>String(r.id)===reportId)){
+    alert('Report not found. Refresh Report History and try again.');return;
+  }
+  // Close the overlay first, so it cannot obscure the editing form.
+  closeDetail();
+  try {
+    editReport(reportId);
+    document.getElementById('formPanel').classList.remove('hidden');
+    document.getElementById('historyPanel').classList.add('hidden');
+    document.getElementById('adminPanel').classList.add('hidden');
+    document.getElementById('formTab').classList.add('active');
+    document.getElementById('historyTab').classList.remove('active');
+    document.getElementById('adminTab').classList.remove('active');
+    window.scrollTo({top:0,behavior:'instant'});
+  } catch(error) {
+    console.error('Unable to open Edit form',error);
+    alert('Unable to open Edit form: '+(error?.message||String(error)));
+  }
 }
+// Delegated listener remains active even when the detail card is regenerated.
+document.getElementById('detailOverlay').addEventListener('click',function(event){
+  const button=event.target.closest('#detailEditAction');
+  if(!button)return;
+  event.preventDefault();event.stopPropagation();
+  editFromDetail(button.dataset.editReportId);
+});
 function editReport(id){
   const x=records().find(r=>String(r.id)===String(id));
   if(!x){alert('Report not found.');return;}
